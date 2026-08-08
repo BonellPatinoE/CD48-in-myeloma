@@ -144,3 +144,81 @@ DotPlot(seurat.harmony.annotated, features = c("CD244", "CD48", "TNFRSF17"), col
 VlnPlot(seurat.harmony.annotated, features = c("CD244", "CD48"), split.by = "Patient", pt.size = 0, log=F) + theme(legend.position = "right")
 
 
+p <- DotPlot(
+  seurat.harmony.annotated,
+  features = c("CD244", "CD48", "TNFRSF17"),  # use your preferred feature order
+  split.by = "Patient",
+  cols = c("blue", "red"),
+  dot.scale = 8
+) +
+  RotatedAxis() +
+  scale_y_discrete(labels = function(x) sub("_(MM|HD)$", "", x))
+
+# Add separate MM/HD legend (no black outline)
+legend_df <- data.frame(
+  features.plot = unique(p$data$features.plot)[1],
+  id = unique(p$data$id)[1],
+  Patient = factor(c("MM", "HD"), levels = c("MM", "HD"))
+)
+
+p +
+  geom_point(
+    data = legend_df,
+    aes(x = features.plot, y = id, fill = Patient),
+    inherit.aes = FALSE,
+    shape = 21, size = 4, alpha = 0, show.legend = TRUE
+  ) +
+  scale_fill_manual(
+    values = c(MM = "red", HD = "blue"),
+    breaks = c("MM", "HD"),
+    name = "Patient"
+  ) +
+  guides(
+    fill = guide_legend(
+      override.aes = list(alpha = 1, shape = 21, size = 5, color = NA, stroke = 0)
+    )
+  )
+
+
+########################
+install.packages("ggnewscale")
+library(ggnewscale)
+
+# your existing plot, unchanged, assigned so we can build on it
+p2 <- p +
+  geom_point(data = legend_df,
+             aes(x = features.plot, y = id, fill = Patient),
+             inherit.aes = FALSE, shape = 21, size = 4, alpha = 0,
+             show.legend = TRUE) +
+  scale_fill_manual(values = c(MM = "red", HD = "blue"),
+                    breaks = c("MM", "HD"), name = "Patient") +
+  guides(fill = guide_legend(
+    override.aes = list(alpha = 1, shape = 21, size = 5, colour = NA, stroke = 0)))
+
+# --- dummy layers that exist only to render two colourbars ---
+bar_df <- data.frame(
+  features.plot = unique(p$data$features.plot)[1],
+  id            = unique(p$data$id)[1],
+  z             = c(0, 1)
+)
+
+p2 +
+  new_scale_fill() +
+  geom_point(data = bar_df, aes(x = features.plot, y = id, fill = z),
+             inherit.aes = FALSE, shape = 21, size = 0, alpha = 0,
+             show.legend = TRUE) +
+  scale_fill_gradient(low = "grey85", high = "red",
+                      name   = "MM scaled\navg. expression",
+                      breaks = c(0, 1), labels = c("low", "high"),
+                      guide  = guide_colourbar(barheight = 3, order = 3)) +
+  new_scale_fill() +
+  geom_point(data = bar_df, aes(x = features.plot, y = id, fill = z),
+             inherit.aes = FALSE, shape = 21, size = 0, alpha = 0,
+             show.legend = TRUE) +
+  scale_fill_gradient(low = "grey85", high = "blue",
+                      name   = "HD scaled\navg. expression",
+                      breaks = c(0, 1), labels = c("low", "high"),
+                      guide  = guide_colourbar(barheight = 3, order = 4))
+
+
+
