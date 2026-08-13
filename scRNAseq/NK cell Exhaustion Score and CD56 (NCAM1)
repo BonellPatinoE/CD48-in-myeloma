@@ -1,0 +1,82 @@
+# Recalculate exhaustion score on seurat_subset
+exhaustion_genes <- c("LAG3", "TIGIT", "KLRG1", "KLRC1", "CISH")
+
+seurat_subset <- AddModuleScore(
+  seurat_subset,
+  features = list(exhaustion_genes),
+  name     = "ExhaustionScore"
+)
+
+# Verify it's there
+head(seurat_subset@meta.data$ExhaustionScore1)
+
+# Now plot by cluster
+Idents(seurat_subset) <- "seurat_clusters"
+
+VlnPlot(seurat_subset,
+        features = "ExhaustionScore1",
+        pt.size  = 0.5,
+        group.by = "seurat_clusters") +
+  stat_summary(
+    fun.data = function(x) data.frame(y = mean(x), ymin = mean(x), ymax = mean(x)),
+    geom = "crossbar", width = 0.5, color = "black"
+  ) +
+  ggtitle("NK Exhaustion Score by Subcluster") +
+  xlab("Cluster")
+
+# FeaturePlot on UMAP to see spatial distribution
+# Option 1: Remove cutoff entirely — shows full range
+FeaturePlot(seurat_subset,
+            features = "ExhaustionScore1", split.by = "Patient",
+            raster = FALSE) +
+  ggtitle("Exhaustion Score — NK UMAP")
+
+# Option 2: Use quantile-based cutoffs — more informative
+FeaturePlot(seurat_subset,
+            features = "ExhaustionScore1", split.by = "Patient",
+            min.cutoff = "q10",
+            max.cutoff = "q90",
+            raster = FALSE) +
+  ggtitle("Exhaustion Score — NK UMAP")
+
+library(patchwork)
+p <- FeaturePlot(seurat_subset,
+                 features   = "ExhaustionScore1",
+                 split.by   = "Patient",
+                 raster     = FALSE) &
+  theme(legend.position = "right")
+
+p + plot_annotation(title = "Exhaustion Score — NK UMAP")
+
+# Also check by Patient within clusters
+VlnPlot(seurat_subset,
+        features = "ExhaustionScore1",
+        pt.size  = 0.5,
+        group.by = "seurat_clusters",
+        split.by = "Patient") +
+  ggtitle("NK Exhaustion Score by Subcluster — split by HD/MM")
+
+# CD56 (NCAM1) on UMAP — no cutoff needed
+FeaturePlot(seurat_subset,
+            features = "NCAM1", split.by = "Patient",
+            min.cutoff = "q10",
+            max.cutoff = "q90",
+            raster = FALSE) +
+  ggtitle("NCAM1 (CD56) — NK UMAP")
+
+# Correlation exhaustion vs NCAM1
+seurat_subset$NCAM1_expr <- GetAssayData(
+  seurat_subset, assay = "RNA", layer = "data")["NCAM1", ]
+
+ggplot(seurat_subset@meta.data,
+       aes(x = NCAM1_expr, 
+           y = ExhaustionScore1, 
+           color = Patient)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  scale_color_manual(values = c("HD" = "#F8766D", "MM" = "#00BFC4")) +
+  theme_classic() +
+  stat_cor(method = "pearson") +
+  labs(title = "NCAM1 (CD56) vs NK Exhaustion Score",
+       x     = "NCAM1 expression",
+       y     = "Exhaustion Score")
