@@ -91,6 +91,9 @@ markers%>%filter(cluster==4)
 markers%>%filter(gene=="RNF213")
 FeaturePlot(seurat_subset, features = c("KLRD1"), split.by = "Patient", min.cutoff = 0, max.cutoff = 4, raster=FALSE)
 
+FeaturePlot(seurat_subset, features = c("KLRC2", "KLRC3", "GZMH", "FCER1G", "KLRB1", "KLRF1", "NKG7"), split.by = "Patient", min.cutoff = 0, max.cutoff = 4, raster=FALSE)
+
+
 #"CD2", "GZMH", "KLRC2", "FCER1G" 
 
 # Checking the datasets are being merged properly
@@ -248,6 +251,16 @@ VlnPlot(seurat_subset, features = c("BATF"), split.by = "Patient", pt.size = 0.5
   stat_compare_means()
 
 VlnPlot(seurat_subset, features = c("EOMES"), split.by = "Patient", pt.size = 0.5) + 
+  stat_summary(fun.data = function(x) data.frame(y = mean(x), ymin = mean(x), ymax = mean(x)), 
+               geom = "crossbar", width = 0.5, color = "black") + 
+  stat_compare_means()
+
+VlnPlot(seurat_subset, features = c("SH2D1B"), split.by = "Patient", pt.size = 0.5) + 
+  stat_summary(fun.data = function(x) data.frame(y = mean(x), ymin = mean(x), ymax = mean(x)), 
+               geom = "crossbar", width = 0.5, color = "black") + 
+  stat_compare_means()
+
+VlnPlot(seurat_subset, features = c("ZNF683"), split.by = "Patient", pt.size = 0.5) + 
   stat_summary(fun.data = function(x) data.frame(y = mean(x), ymin = mean(x), ymax = mean(x)), 
                geom = "crossbar", width = 0.5, color = "black") + 
   stat_compare_means()
@@ -447,7 +460,7 @@ HLA_indep_act_rec_genes<- c("NCR3", "NCR1", "KLRK1", "CRTAM", "FCGR3A")
 # Load AUCell and calculate scores
 library(AUCell)
 
-expression_matrix <- GetAssayData(seurat_subset, assay = "RNA", slot = "data")
+expression_matrix <- GetAssayData(seurat_subset, assay = "RNA", layer = "data")
 cells_rankings <- AUCell_buildRankings(expression_matrix)  # Build gene expression rankings
 
 # Calculate AUC for each gene set
@@ -599,7 +612,7 @@ DoHeatmap(seurat_subset, features = top_de_genes, size = 3) +
 avg_expression <- AverageExpression(seurat_subset, return.seurat = TRUE)
 
 # Extract the averaged expression data
-avg_data <- GetAssayData(avg_expression, slot = "data")
+avg_data <- GetAssayData(avg_expression, layer = "data")
 
 # Create the heatmap for the top DE genes
 DoHeatmap(avg_expression, features = top_de_genes, size = 3) + 
@@ -671,3 +684,154 @@ pheatmap(log2(ordered_df + 1),
          main = "Heatmap of Gene Expression by Cluster")
 
 
+# Check marker genes for clusters 1 and 4
+markers %>% filter(cluster %in% c(1, 4)) %>% 
+  filter(gene %in% c("KLRC2", "KLRC3", "GZMH", "FCER1G", "KLRB1", "KLRF1", "NKG7")) %>%
+  arrange(cluster, desc(avg_log2FC))
+
+DotPlot(seurat_subset, features = c("KLRC2", "KLRC3", "GZMH", "FCER1G", "KLRB1", "KLRF1", "NKG7"),
+        cols = c("blue", "red"), dot.scale = 8, split.by = "Patient") + RotatedAxis()
+
+FeaturePlot(seurat_subset, features = c("KLRC2", "KLRC3", "GZMH", "FCER1G", "KLRB1", "KLRF1", "NKG7"), split.by = "Patient", min.cutoff = 0, max.cutoff = 2, raster=FALSE)
+
+FeaturePlot(seurat_subset, features = c("KLRC2", "GZMH", "B3GAT1"), split.by = "Patient", min.cutoff = 0, max.cutoff = 2, raster=FALSE)
+
+FeaturePlot(seurat_subset, features = c("JUN", "FOS"), split.by = "Patient", min.cutoff = 0, max.cutoff = 2, raster=FALSE)
+
+
+
+# Recalculate exhaustion score on seurat_subset
+exhaustion_genes <- c("LAG3", "TIGIT", "KLRG1", "KLRC1", "CISH")
+
+seurat_subset <- AddModuleScore(
+  seurat_subset,
+  features = list(exhaustion_genes),
+  name     = "ExhaustionScore"
+)
+
+# Verify it's there
+head(seurat_subset@meta.data$ExhaustionScore1)
+
+# Now plot by cluster
+Idents(seurat_subset) <- "seurat_clusters"
+
+VlnPlot(seurat_subset,
+        features = "ExhaustionScore1",
+        pt.size  = 0.5,
+        group.by = "seurat_clusters") +
+  stat_summary(
+    fun.data = function(x) data.frame(y = mean(x), ymin = mean(x), ymax = mean(x)),
+    geom = "crossbar", width = 0.5, color = "black"
+  ) +
+  ggtitle("NK Exhaustion Score by Subcluster") +
+  xlab("Cluster")
+
+# FeaturePlot on UMAP to see spatial distribution
+# Option 1: Remove cutoff entirely — shows full range
+FeaturePlot(seurat_subset,
+            features = "ExhaustionScore1", split.by = "Patient",
+            raster = FALSE) +
+  ggtitle("Exhaustion Score — NK UMAP")
+
+# Option 2: Use quantile-based cutoffs — more informative
+FeaturePlot(seurat_subset,
+            features = "ExhaustionScore1", split.by = "Patient",
+            min.cutoff = "q10",
+            max.cutoff = "q90",
+            raster = FALSE) +
+  ggtitle("Exhaustion Score — NK UMAP")
+
+library(patchwork)
+p <- FeaturePlot(seurat_subset,
+                 features   = "ExhaustionScore1",
+                 split.by   = "Patient",
+                 raster     = FALSE) &
+  theme(legend.position = "right")
+
+p + plot_annotation(title = "Exhaustion Score — NK UMAP")
+
+# Also check by Patient within clusters
+VlnPlot(seurat_subset,
+        features = "ExhaustionScore1",
+        pt.size  = 0.5,
+        group.by = "seurat_clusters",
+        split.by = "Patient") +
+  ggtitle("NK Exhaustion Score by Subcluster — split by HD/MM")
+
+# CD56 (NCAM1) on UMAP — no cutoff needed
+FeaturePlot(seurat_subset,
+            features = "NCAM1", split.by = "Patient",
+            min.cutoff = "q10",
+            max.cutoff = "q90",
+            raster = FALSE) +
+  ggtitle("NCAM1 (CD56) — NK UMAP")
+
+# Correlation exhaustion vs NCAM1
+seurat_subset$NCAM1_expr <- GetAssayData(
+  seurat_subset, assay = "RNA", layer = "data")["NCAM1", ]
+
+ggplot(seurat_subset@meta.data,
+       aes(x = NCAM1_expr, 
+           y = ExhaustionScore1, 
+           color = Patient)) +
+  geom_point(alpha = 0.3, size = 0.8) +
+  geom_smooth(method = "lm", se = TRUE) +
+  scale_color_manual(values = c("HD" = "#F8766D", "MM" = "#00BFC4")) +
+  theme_classic() +
+  stat_cor(method = "pearson") +
+  labs(title = "NCAM1 (CD56) vs NK Exhaustion Score",
+       x     = "NCAM1 expression",
+       y     = "Exhaustion Score")
+
+# Check AP-1 expression per cluster
+Idents(seurat_subset) <- "seurat_clusters"
+
+DotPlot(seurat_subset,
+        features = c("FOS", "JUN", "JUNB", "FOSB", "FOSL2"),
+        cols = c("red", "blue"), split.by = "Patient", 
+        dot.scale = 8) +
+  RotatedAxis() +
+  ggtitle("AP-1 family expression by NK subcluster")
+
+# Check cluster 2 composition by HD/MM
+table(seurat_subset$seurat_clusters, seurat_subset$Patient)
+
+# Fix: swap the levels so MM = red, HD = blue
+seurat_subset$Patient <- factor(seurat_subset$Patient, levels = c("MM", "HD"))
+
+p <- DotPlot(
+  seurat_subset,
+  features  = c("FOS", "JUN", "JUNB", "FOSB", "FOSL2"),
+  split.by  = "Patient",
+  cols      = c("red", "blue"),   # now MM = red, HD = blue
+  dot.scale = 8
+) +
+  RotatedAxis() +
+  ggtitle("AP-1 family expression by NK subcluster") +
+  scale_y_discrete(labels = function(x) sub("_(MM|HD)$", "", x))
+
+# Legend
+legend_df <- data.frame(
+  features.plot = unique(p$data$features.plot)[1],
+  id            = unique(p$data$id)[1],
+  Patient       = factor(c("MM", "HD"), levels = c("MM", "HD"))
+)
+
+p +
+  geom_point(
+    data        = legend_df,
+    aes(x = features.plot, y = id, fill = Patient),
+    inherit.aes = FALSE,
+    shape       = 21, size = 4, alpha = 0, show.legend = TRUE
+  ) +
+  scale_fill_manual(
+    values = c(MM = "red", HD = "blue"),
+    breaks = c("MM", "HD"),
+    name   = "Condition"
+  ) +
+  guides(
+    fill = guide_legend(
+      override.aes = list(alpha = 1, shape = 21, size = 8,
+                          color = NA, stroke = 0)
+    )
+  )
