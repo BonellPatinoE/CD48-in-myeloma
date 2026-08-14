@@ -128,7 +128,7 @@ message("Final exhaustion_genes:          ", paste(exhaustion_genes, collapse = 
 # ================================================
 # 5. EXTRACT EXPRESSION MATRIX AND CONVERT TO SPARSE
 # ================================================
-expr_matrix_nk        <- GetAssayData(nk_only, assay = "RNA", slot = "data")
+expr_matrix_nk        <- GetAssayData(nk_only, assay = "RNA", layer = "data")
 expr_matrix_nk_sparse <- as(expr_matrix_nk, "dgCMatrix")
 
 # ================================================
